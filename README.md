@@ -45,6 +45,17 @@ publish/FlashDesktop.exe --self-test
 退出后读取 `Data/selftest.json`，覆盖窗口层级、Z 序、图标缓存、拖放不改原文件、无驻留定时器、
 隐藏→显示可逆、客户端四页构建等检查项。
 
+## 更新清单
+
+客户端「检查更新」默认读取本仓库根目录的 `version.json`：
+
+```
+https://raw.githubusercontent.com/startime-ltk/FlashDesktop/main/version.json
+```
+
+格式：`{ "version": "0.5.0", "notes": "更新说明", "url": "下载页" }`。
+发布新版时改这个文件即可，客户端按版本号比较。
+
 ## 数据
 
 全部位于 exe 同级 `Data/` 目录：`items.json`、`settings.json`、`layout.json`、`icon-cache/`。

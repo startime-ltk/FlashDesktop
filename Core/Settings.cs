@@ -21,7 +21,11 @@ public sealed class Settings
     public int TileSize { get; set; } = 84;           // 64..110
 
     // ---- S5 client: update ------------------------------------------------
-    public string UpdateUrl { get; set; } = "";       // version.json manifest (https)
+    /// <summary>Default manifest lives in the public source repo.</summary>
+    public const string DefaultUpdateUrl =
+        "https://raw.githubusercontent.com/startime-ltk/FlashDesktop/main/version.json";
+
+    public string UpdateUrl { get; set; } = DefaultUpdateUrl; // version.json manifest
 
     private static readonly string[] CardStyles = { "solid", "translucent", "gradient" };
 
@@ -66,7 +70,7 @@ public sealed class Settings
         TileSize = Math.Clamp(TileSize, 64, 110);
 
         if (!IsHexColor(Accent)) Accent = "#60CDFF";
-        if (UpdateUrl is null) UpdateUrl = "";
+        if (string.IsNullOrWhiteSpace(UpdateUrl)) UpdateUrl = DefaultUpdateUrl;
     }
 
     private static bool IsHexColor(string? s)
