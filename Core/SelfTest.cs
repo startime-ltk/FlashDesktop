@@ -39,6 +39,7 @@ public static class SelfTest
     private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
 
     private const uint GW_HWNDPREV = 3;
+    private const uint GW_HWNDNEXT = 2;
     private const uint SWP_NOMOVE = 0x0002, SWP_NOSIZE = 0x0001, SWP_NOACTIVATE = 0x0010;
     private static readonly IntPtr HWND_TOPMOST = new(-1);
 
@@ -225,20 +226,30 @@ public static class SelfTest
             layer.ReassertZOrder();
             uint myPid = (uint)Environment.ProcessId;
             var belowChain = new System.Collections.Generic.List<string>();
-            bool firstForeignIsDesktop = false;
-            IntPtr cur = GetWindow(card.Handle, GW_HWNDPREV);
-            for (int i = 0; i < 16 && cur != IntPtr.Zero; i++)
+            bool firstVisibleForeignIsDesktop = false;
+            // GW_HWNDNEXT = the window BELOW in Z order. The card must sit directly
+            // on top of the desktop band, so the first visible foreign window below
+            // it has to be Progman / WorkerW / the icon view.
+            IntPtr cur = GetWindow(card.Handle, GW_HWNDNEXT);
+            for (int i = 0; i < 64 && cur != IntPtr.Zero; i++)
             {
                 GetWindowThreadProcessId(cur, out uint pid);
                 bool ours = pid == myPid;
+                bool visible = IsWindowVisible(cur);
                 string cls = ClassName(cur);
-                belowChain.Add($"{(ours ? "[own]" : "[other pid=" + pid + "]")} {cls}");
-                if (!ours) { firstForeignIsDesktop = IsDesktopClass(cls); break; }
-                cur = GetWindow(cur, GW_HWNDPREV);
+                belowChain.Add($"{(ours ? "[own]" : "[other pid=" + pid + "]")} {cls}"
+                               + (visible ? "" : " (hidden)"));
+                if (!ours && visible)
+                {
+                    firstVisibleForeignIsDesktop = IsDesktopClass(cls);
+                    break;
+                }
+                cur = GetWindow(cur, GW_HWNDNEXT);
             }
             checks["z_order"] = new
             {
-                pass = firstForeignIsDesktop,
+                pass = firstVisibleForeignIsDesktop,
+                rule = "card directly above the desktop band, below every app window",
                 window_below_chain = belowChain
             };
 

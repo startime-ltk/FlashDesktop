@@ -30,6 +30,7 @@ public sealed class WindowLayer
     private const uint SWP_NOACTIVATE = 0x0010;
     private const uint SWP_FRAMECHANGED = 0x0020;
     private static readonly IntPtr HWND_BOTTOM = new(1);
+    private static readonly IntPtr HWND_TOP = new(0);
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     private static extern IntPtr FindWindow(string? className, string? windowName);
@@ -52,6 +53,17 @@ public sealed class WindowLayer
 
     [DllImport("user32.dll")]
     private static extern bool GetCursorPos(out POINT p);
+
+    private const uint GW_HWNDNEXT = 2;
+    private const uint GW_HWNDPREV = 3;
+
+    [DllImport("user32.dll")] private static extern IntPtr GetTopWindow(IntPtr hWnd);
+    [DllImport("user32.dll")] private static extern IntPtr GetWindow(IntPtr hWnd, uint cmd);
+    [DllImport("user32.dll")] private static extern bool IsWindowVisible(IntPtr hWnd);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern int GetClassName(IntPtr hWnd, System.Text.StringBuilder buf, int max);
+    [DllImport("user32.dll")]
+    private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
 
     public sealed record Card(Window Window, IntPtr Handle, Rect Rect, string Category);
 
@@ -156,6 +168,13 @@ public sealed class WindowLayer
             window.Show(); // SW_SHOWNA because ShowActivated=false
 
             var handle = new WindowInteropHelper(window).Handle;
+
+            // Showing a window raises it, which undoes the Z-order set in
+            // SourceInitialized. Apply again after Show, and once more after the
+            // first frame. Both are one-shot events - no timer, no polling.
+            ApplyZOrder(handle);
+            window.ContentRendered += (_, _) => ApplyZOrder(handle);
+
             _cards.Add(new Card(window, handle,
                 new Rect(px, py, _layout.CardWidth, _layout.CardHeight), cat));
         }
@@ -212,6 +231,11 @@ public sealed class WindowLayer
             Top = System.Math.Round(py)
         };
         try { _layout.Save(_layout.FilePath); } catch { /* read-only: keep in memory */ }
+
+        // Moving a window can raise it above other apps; sink it back onto the
+        // desktop band so "above desktop, below every app" still holds.
+        var hwnd = new WindowInteropHelper(window).Handle;
+        if (hwnd != IntPtr.Zero) ApplyZOrder(hwnd);
     }
 
     /// <summary>Programmatic move (self-test / future layout presets).</summary>
@@ -278,12 +302,65 @@ public sealed class WindowLayer
     /// icon view but below every ordinary application window. Event-driven only:
     /// called on creation and on TaskbarCreated (explorer restart).
     /// </summary>
+    /// <summary>
+    /// Put the card immediately ABOVE the whole desktop band (Progman / WorkerW /
+    /// the icon view), which also puts it BELOW every ordinary application window.
+    /// One-shot and event-driven: called on creation and on TaskbarCreated only.
+    /// </summary>
     private static void ApplyZOrder(IntPtr hwnd)
     {
-        var progman = FindWindow("Progman", null);
-        var insertAfter = progman != IntPtr.Zero ? progman : HWND_BOTTOM;
-        SetWindowPos(hwnd, insertAfter, 0, 0, 0, 0,
+        var bandTop = FindDesktopBandTop();
+        if (bandTop == IntPtr.Zero)
+        {
+            // No desktop found: sink to the bottom rather than float on top.
+            SetWindowPos(hwnd, HWND_BOTTOM, 0, 0, 0, 0,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_FRAMECHANGED);
+            return;
+        }
+
+        // Insert *after* the window that currently sits right above the band.
+        // Result: [apps] ... [card] [desktop band]. Never above a normal app.
+        uint myPid = (uint)Environment.ProcessId;
+        IntPtr above = GetWindow(bandTop, GW_HWNDPREV);
+        while (above != IntPtr.Zero && IsOwnWindow(above, myPid))
+            above = GetWindow(above, GW_HWNDPREV);
+
+        var anchor = above != IntPtr.Zero ? above : HWND_TOP;
+        SetWindowPos(hwnd, anchor, 0, 0, 0, 0,
             SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_FRAMECHANGED);
+    }
+
+    private static bool IsOwnWindow(IntPtr h, uint pid)
+    {
+        GetWindowThreadProcessId(h, out uint p);
+        return p == pid;
+    }
+
+    /// <summary>
+    /// Topmost VISIBLE window of the desktop band, walking the top-level Z order.
+    /// Hidden windows are ignored: the band is what the user actually sees, and
+    /// anchoring to a hidden window would leave the card above visible apps.
+    /// </summary>
+    private static IntPtr FindDesktopBandTop()
+    {
+        IntPtr h = GetTopWindow(IntPtr.Zero);
+        int guard = 0;
+        while (h != IntPtr.Zero && guard++ < 1024)
+        {
+            if (IsWindowVisible(h) && IsDesktopClass(ClassNameOf(h))) return h;
+            h = GetWindow(h, GW_HWNDNEXT);
+        }
+        return FindWindow("Progman", null);
+    }
+
+    private static bool IsDesktopClass(string c) =>
+        c == "Progman" || c == "WorkerW" || c.Contains("SHELLDLL") || c == "SysListView32";
+
+    private static string ClassNameOf(IntPtr h)
+    {
+        var sb = new System.Text.StringBuilder(256);
+        GetClassName(h, sb, sb.Capacity);
+        return sb.ToString();
     }
 
     private IntPtr WndHook(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
