@@ -396,6 +396,20 @@ public sealed class ClientWindow : Window
             }
         }));
 
+        int hidden = _ctx.Store.HiddenCount;
+        if (hidden > 0)
+        {
+            stack.Children.Add(Panel(new StackPanel
+            {
+                Children =
+                {
+                    RowTitle("已移除的图标（" + hidden + "）",
+                        "只是从面板里拿掉，原文件没动。需要时一键放回。"),
+                    Actions(Pill("全部放回卡片", RestoreRemoved, true))
+                }
+            }));
+        }
+
         stack.Children.Add(Note("按定案，V1 不提供开机自启，也不写任何注册表项。需要开机使用时，把 exe 的快捷方式放进启动文件夹即可（由你手动放，程序不碰系统状态）。"));
 
         return stack;
@@ -883,6 +897,13 @@ public sealed class ClientWindow : Window
         catch { /* cache hygiene must never break the UI */ }
 
         _ctx.NotifyChanged();
+        RefreshTheme();
+    }
+
+    private void RestoreRemoved()
+    {
+        int n = _ctx.Store.RestoreAll();
+        if (n > 0) _ctx.NotifyChanged();
         RefreshTheme();
     }
 

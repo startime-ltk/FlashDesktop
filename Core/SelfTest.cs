@@ -139,15 +139,32 @@ public static class SelfTest
         string tmpFile = Path.Combine(Path.GetTempPath(), "fd_selftest_" + Guid.NewGuid().ToString("N") + ".txt");
         File.WriteAllText(tmpFile, "do-not-move");
         long lenBefore = new FileInfo(tmpFile).Length;
-        ctx.Store.AddReference(tmpFile, "selftest", AppIndexer.CatOther, "file");
+        var tmpEntry = ctx.Store.AddReference(tmpFile, "selftest", AppIndexer.CatOther, "file");
         bool untouched = File.Exists(tmpFile) && new FileInfo(tmpFile).Length == lenBefore &&
                          File.ReadAllText(tmpFile) == "do-not-move";
-        ctx.Store.Remove(ctx.Store.Items.First(i => i.OriginalPath == tmpFile).Id);
-        try { File.Delete(tmpFile); } catch { }
         checks["drag_original_untouched"] = new
         {
             pass = untouched,
             note = "AddReference stores only a path; the real file is never moved/copied"
+        };
+
+        // ---- S5: removing a tile must only drop our reference (red line 1) ----
+        int hiddenBefore = ctx.Store.HiddenCount;
+        ctx.Store.Remove(tmpEntry.Id);
+        bool fileAlive = File.Exists(tmpFile) && File.ReadAllText(tmpFile) == "do-not-move";
+        bool goneFromCard = !ctx.Store.ItemsIn(AppIndexer.CatOther, false).Any(i => i.Id == tmpEntry.Id)
+                            && ctx.Store.HiddenCount == hiddenBefore + 1;
+        bool restoredOne = ctx.Store.Restore(tmpEntry.Id);
+        bool backOnCard = ctx.Store.ItemsIn(AppIndexer.CatOther, false).Any(i => i.Id == tmpEntry.Id);
+        ctx.Store.Purge(tmpEntry.Id); // remove the probe entry, leave user data alone
+        try { File.Delete(tmpFile); } catch { }
+        checks["remove_from_card"] = new
+        {
+            pass = fileAlive && goneFromCard && restoredOne && backOnCard,
+            real_file_untouched = fileAlive,
+            hidden_flag_only = goneFromCard,
+            restore_works = backOnCard,
+            note = "remove hides the reference only; the real file stays and can be restored"
         };
 
         // ---- S1 window checks (unchanged) ------------------------------------

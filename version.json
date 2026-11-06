@@ -1,5 +1,5 @@
 {
-  "version": "0.5.0",
-  "notes": "首个公开版本：B+ 架构桌面分类卡片面板（收录/图标缓存/拖放/排序）+ 客户端（外观风格/常规设置/检查更新/关于）。",
-  "url": "https://github.com/startime-ltk/FlashDesktop/releases"
+  "version": "0.5.1",
+  "notes": "新增：从卡片移除图标——悬停磁贴右上角点 ×，或右键选「从卡片移除」。只移除面板里的引用，绝不删除或移动原文件；误删可在客户端「常规设置 → 已移除的图标」一键放回。",
+  "url": "https://github.com/startime-ltk/FlashDesktop/releases/tag/v0.5.1"
 }

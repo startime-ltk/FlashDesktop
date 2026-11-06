@@ -124,10 +124,60 @@ public sealed class CardView : Border
             HorizontalAlignment = HorizontalAlignment.Center
         });
 
-        tile.Child = sp;
+        var close = new Border
+        {
+            Width = 18,
+            Height = 18,
+            CornerRadius = new CornerRadius(9),
+            Background = Theme.BrushFromHex("#000000", 0x70),
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Top,
+            Margin = new Thickness(0, -2, -2, 0),
+            Cursor = Cursors.Hand,
+            Visibility = Visibility.Collapsed,
+            ToolTip = "从卡片移除（不会删除原文件）",
+            Child = new TextBlock
+            {
+                Text = "✕",
+                FontSize = 9,
+                Foreground = Brushes.White,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            }
+        };
+        close.MouseLeftButtonDown += (_, e) => e.Handled = true;
+        close.MouseLeftButtonUp += (_, e) =>
+        {
+            e.Handled = true;
+            RemoveEntry(entry);
+        };
 
-        tile.MouseEnter += (_, _) => tile.Background = _pal.TileHover;
-        tile.MouseLeave += (_, _) => tile.Background = _pal.TileBg;
+        var grid = new Grid();
+        grid.Children.Add(sp);
+        grid.Children.Add(close);
+
+        tile.Child = grid;
+
+        tile.MouseEnter += (_, _) =>
+        {
+            tile.Background = _pal.TileHover;
+            close.Visibility = Visibility.Visible;
+        };
+        tile.MouseLeave += (_, _) =>
+        {
+            tile.Background = _pal.TileBg;
+            close.Visibility = Visibility.Collapsed;
+        };
+
+        // Build the menu on demand: 140 eager ContextMenus cost ~12MB of private
+        // bytes for nothing. Closed menus are collectable.
+        tile.MouseRightButtonUp += (_, e) =>
+        {
+            e.Handled = true;
+            var menu = BuildTileMenu(entry);
+            menu.PlacementTarget = tile;
+            menu.IsOpen = true;
+        };
         // Border has no MouseDoubleClick (that's a Control event), so detect the
         // double-click manually via two MouseLeftButtonDown within 400ms.
         tile.MouseLeftButtonDown += (_, _) =>
@@ -166,6 +216,71 @@ public sealed class CardView : Border
         tile.MouseLeftButtonUp += (_, _) => _dragItem = null;
 
         return tile;
+    }
+
+    private void RemoveEntry(ItemEntry entry)
+    {
+        // Soft delete: only our own items.json changes. The real file stays put,
+        // and the client can restore every removed tile in one click.
+        _ctx.Store.Remove(entry.Id);
+        var app = System.Windows.Application.Current;
+        if (app is not null)
+            app.Dispatcher.BeginInvoke(new Action(() => _ctx.NotifyChanged()));
+        else
+            _ctx.NotifyChanged();
+    }
+
+    private ContextMenu BuildTileMenu(ItemEntry entry)
+    {
+        var menu = new ContextMenu
+        {
+            Background = _pal.PanelBg,
+            BorderBrush = _pal.Border,
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(4)
+        };
+
+        menu.Items.Add(MenuAction("启动", () =>
+        {
+            Launcher.Launch(entry);
+            _ctx.Store.TouchUsage(entry.Id);
+        }));
+
+        bool exists = entry.Kind is "file" or "folder" or "lnk" &&
+                      (System.IO.File.Exists(entry.OriginalPath) ||
+                       System.IO.Directory.Exists(entry.OriginalPath));
+        if (exists)
+            menu.Items.Add(MenuAction("打开所在位置", () => RevealInExplorer(entry)));
+
+        menu.Items.Add(new Separator());
+        menu.Items.Add(MenuAction("从卡片移除", () => RemoveEntry(entry)));
+        return menu;
+    }
+
+    private MenuItem MenuAction(string text, Action onClick)
+    {
+        var mi = new MenuItem
+        {
+            Header = text,
+            Foreground = _pal.Text,
+            Padding = new Thickness(10, 6, 10, 6)
+        };
+        mi.Click += (_, _) => onClick();
+        return mi;
+    }
+
+    private static void RevealInExplorer(ItemEntry entry)
+    {
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = "explorer.exe",
+                Arguments = "/select,\"" + entry.OriginalPath + "\"",
+                UseShellExecute = true
+            });
+        }
+        catch { /* explorer unavailable: ignore */ }
     }
 
     private UIElement MakePlaceholder(ItemEntry entry)

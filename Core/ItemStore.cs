@@ -88,13 +88,17 @@ public sealed class ItemStore
     // ---- queries -----------------------------------------------------------
 
     public IReadOnlyList<string> AllCategories() =>
-        _doc.Items.Select(i => i.Category).Distinct().OrderBy(c => c).ToList();
+        _doc.Items.Where(i => !i.Hidden)
+            .Select(i => i.Category).Distinct().OrderBy(c => c).ToList();
 
     public IReadOnlyList<ItemEntry> ItemsIn(string category, bool freqSort) =>
         _doc.Items
-            .Where(i => i.Category == category)
+            .Where(i => i.Category == category && !i.Hidden)
             .OrderBy(i => freqSort ? -i.UsageCount : i.ManualOrder)
             .ToList();
+
+    /// <summary>How many entries the user pulled out of the cards (restorable).</summary>
+    public int HiddenCount => _doc.Items.Count(i => i.Hidden);
 
     /// <summary>Seed the whole catalog at once (first run). Persists a single time.</summary>
     public void Seed(IReadOnlyList<ItemEntry> items)
@@ -110,7 +114,20 @@ public sealed class ItemStore
     /// <summary>Add a reference to a real file/folder. Never moves or copies the file.</summary>
     public ItemEntry AddReference(string originalPath, string displayName, string category, string kind = "file")
     {
-        var inCat = _doc.Items.Where(i => i.Category == category).ToList();
+        // Dragging a previously removed item back should restore it, not duplicate it.
+        var existing = _doc.Items.FirstOrDefault(i =>
+            string.Equals(i.OriginalPath, originalPath, StringComparison.OrdinalIgnoreCase));
+        if (existing is not null)
+        {
+            existing.Hidden = false;
+            existing.Category = category;
+            if (!string.IsNullOrWhiteSpace(displayName)) existing.DisplayName = displayName;
+            RenumberCategory(category);
+            Save();
+            return existing;
+        }
+
+        var inCat = _doc.Items.Where(i => i.Category == category && !i.Hidden).ToList();
         int maxOrder = inCat.Count == 0 ? 0 : inCat.Max(i => i.ManualOrder);
         var e = new ItemEntry
         {
@@ -149,13 +166,54 @@ public sealed class ItemStore
         Save();
     }
 
+    /// <summary>
+    /// Pull a tile out of the panel. Soft delete: only a flag in OUR json changes.
+    /// The real file/folder is never touched, and the entry can be restored later.
+    /// </summary>
     public void Remove(string id)
     {
         var e = ById(id);
         if (e is null) return;
+        e.Hidden = true;
+        RenumberCategory(e.Category);
+        Save();
+    }
+
+    /// <summary>Bring one removed tile back (used by self-test / future per-item undo).</summary>
+    public bool Restore(string id)
+    {
+        var e = ById(id);
+        if (e is null || !e.Hidden) return false;
+        e.Hidden = false;
+        RenumberCategory(e.Category);
+        Save();
+        return true;
+    }
+
+    /// <summary>Bring every removed tile back to its card. Returns how many were restored.</summary>
+    public int RestoreAll()
+    {
+        int n = 0;
+        foreach (var e in _doc.Items.Where(i => i.Hidden))
+        {
+            e.Hidden = false;
+            n++;
+        }
+        if (n == 0) return 0;
+        foreach (var cat in AllCategories()) RenumberCategory(cat);
+        Save();
+        return n;
+    }
+
+    /// <summary>Hard delete used only by self-test cleanup (never a user action).</summary>
+    public bool Purge(string id)
+    {
+        var e = ById(id);
+        if (e is null) return false;
         _doc.Items.Remove(e);
         RenumberCategory(e.Category);
         Save();
+        return true;
     }
 
     public void TouchUsage(string id)
@@ -168,7 +226,7 @@ public sealed class ItemStore
 
     private void RenumberCategory(string category)
     {
-        var list = _doc.Items.Where(i => i.Category == category)
+        var list = _doc.Items.Where(i => i.Category == category && !i.Hidden)
             .OrderBy(i => i.ManualOrder).ToList();
         for (int k = 0; k < list.Count; k++) list[k].ManualOrder = k;
     }
@@ -191,4 +249,7 @@ public sealed class ItemEntry
     public int ManualOrder { get; set; }
     public int UsageCount { get; set; }
     public string? IconKey { get; set; }              // set after first icon extraction
+
+    /// <summary>True = pulled out of the card by the user; only a flag, nothing deleted.</summary>
+    public bool Hidden { get; set; }
 }

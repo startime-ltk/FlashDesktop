@@ -14,8 +14,8 @@
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
     <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
-    <Version>0.5.0</Version>
-    <FileVersion>0.5.0.0</FileVersion>
+    <Version>0.5.1</Version>
+    <FileVersion>0.5.1.0</FileVersion>
     <Product>FlashDesktop</Product>
     <Description>FD desktop - 分类卡片面板 + 客户端 (S2-S5)</Description>
   </PropertyGroup>
