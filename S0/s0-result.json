@@ -1,0 +1,139 @@
+{
+  "probe": "FlashDesktop S0",
+  "bits": 64,
+  "checks": {
+    "no_focus_steal": {
+      "pass": true,
+      "before": 263736,
+      "after": 263736,
+      "after_class": "Chrome_WidgetWin_1"
+    },
+    "card_point": {
+      "pass": true,
+      "hwnd": 131338,
+      "class": "FD_S0_Card",
+      "ours": 131338
+    },
+    "blank_uncovered": {
+      "pass": true,
+      "samples": [
+        {
+          "point": [
+            560,
+            100
+          ],
+          "hwnd": 132546,
+          "class": "SysListView32",
+          "is_ours": false
+        },
+        {
+          "point": [
+            270,
+            440
+          ],
+          "hwnd": 132546,
+          "class": "SysListView32",
+          "is_ours": false
+        },
+        {
+          "point": [
+            1890,
+            30
+          ],
+          "hwnd": 132546,
+          "class": "SysListView32",
+          "is_ours": false
+        },
+        {
+          "point": [
+            20,
+            1012
+          ],
+          "hwnd": 132546,
+          "class": "SysListView32",
+          "is_ours": false
+        }
+      ]
+    },
+    "taskbar_not_covered": {
+      "pass": true,
+      "card_intersects_taskbar": false
+    },
+    "dblclick_received": {
+      "pass": true,
+      "detail": {
+        "dblclk": 1,
+        "lbuttondown": 1
+      }
+    }
+  },
+  "screen": {
+    "w": 1920,
+    "h": 1080
+  },
+  "work_area": {
+    "left": 0,
+    "top": 0,
+    "right": 1920,
+    "bottom": 1032
+  },
+  "taskbar": {
+    "class": "Shell_TrayWnd",
+    "rect": {
+      "left": 0,
+      "top": 1032,
+      "right": 1920,
+      "bottom": 1080
+    }
+  },
+  "card_rect": {
+    "left": 60,
+    "top": 60,
+    "right": 480,
+    "bottom": 360
+  },
+  "foreground_before": {
+    "hwnd": 263736,
+    "class": "Chrome_WidgetWin_1"
+  },
+  "wind_test": {
+    "simulation_valid": true,
+    "method": "keybd_event Win+D",
+    "foreground_during": {
+      "hwnd": 132540,
+      "class": "Progman"
+    },
+    "before": {
+      "card": {
+        "visible": true,
+        "iconic": false
+      },
+      "control": {
+        "visible": true,
+        "iconic": false
+      }
+    },
+    "during": {
+      "card": {
+        "visible": true,
+        "iconic": false
+      },
+      "control": {
+        "visible": true,
+        "iconic": true
+      }
+    },
+    "after_restore": {
+      "card": {
+        "visible": true,
+        "iconic": false
+      },
+      "control": {
+        "visible": true,
+        "iconic": false
+      }
+    },
+    "card_follows": false,
+    "control_minimised": true
+  }
+}

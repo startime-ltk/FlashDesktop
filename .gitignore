@@ -1,0 +1,21 @@
+# 构建产物
+bin/
+obj/
+publish/
+publish_*/
+
+# 运行时数据：包含本机应用清单与图标缓存，不入库
+Data/
+**/Data/
+
+# 用户/IDE
+*.user
+*.suo
+.vs/
+.idea/
+
+# 系统
+Thumbs.db
+desktop.ini
+*.tmp
+*.bak.log
