@@ -25,6 +25,11 @@ public sealed class CardView : Border
     private Point _dragStart;
     private DateTime _lastClick = DateTime.MinValue;
 
+    /// <summary>Raised while the user drags the card header; WindowLayer owns the window.</summary>
+    public event Action? DragStarted;
+    public event Action? DragMoved;
+    public event Action? DragEnded;
+
     public CardView(CardContext ctx, string category)
     {
         _ctx = ctx;
@@ -60,10 +65,53 @@ public sealed class CardView : Border
             FontWeight = FontWeights.SemiBold,
             Foreground = _pal.Title,
             Opacity = 0.6,
-            Margin = new Thickness(0, 0, 0, 10)
+            VerticalAlignment = VerticalAlignment.Center
         };
-        grid.Children.Add(title);
-        Grid.SetRow(title, 0);
+
+        var grip = new TextBlock
+        {
+            Text = "⠿",
+            FontSize = 11,
+            Foreground = _pal.Title,
+            Opacity = 0.35,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(8, 0, 0, 0)
+        };
+
+        var headerRow = new StackPanel { Orientation = Orientation.Horizontal };
+        headerRow.Children.Add(title);
+        headerRow.Children.Add(grip);
+
+        // Only the header drags the card; the grid below keeps tile drag/drop intact.
+        var header = new Border
+        {
+            Background = Brushes.Transparent,
+            Cursor = Cursors.SizeAll,
+            Padding = new Thickness(2, 2, 2, 8),
+            Child = headerRow,
+            ToolTip = "按住标题拖动卡片"
+        };
+        header.MouseLeftButtonDown += (_, e) =>
+        {
+            e.Handled = true;
+            header.CaptureMouse();
+            DragStarted?.Invoke();
+        };
+        header.MouseMove += (_, e) =>
+        {
+            if (header.IsMouseCaptured && e.LeftButton == MouseButtonState.Pressed)
+                DragMoved?.Invoke();
+        };
+        header.MouseLeftButtonUp += (_, e) =>
+        {
+            if (header.IsMouseCaptured) header.ReleaseMouseCapture();
+            DragEnded?.Invoke();
+            e.Handled = true;
+        };
+        header.LostMouseCapture += (_, _) => DragEnded?.Invoke();
+
+        grid.Children.Add(header);
+        Grid.SetRow(header, 0);
 
         var scroll = new ScrollViewer
         {

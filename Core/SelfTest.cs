@@ -253,6 +253,40 @@ public static class SelfTest
             };
 
             checks["card_visible"] = new { pass = IsWindowVisible(card.Handle) };
+
+            // ---- moving a card: position must stick in layout.json -----------
+            try
+            {
+                var cat = ctx.Categories()[0];
+                var beforeRect = cards[0].Rect;
+                bool hadPlacement = layout.Placements.ContainsKey(cat);
+
+                bool moved = layer.SetCardPosition(cat, beforeRect.Left + 40, beforeRect.Top + 30, true);
+                var afterRect = layer.Cards[0].Rect;
+                bool reallyMoved = System.Math.Abs(afterRect.Left - (beforeRect.Left + 40)) < 0.5 &&
+                                   System.Math.Abs(afterRect.Top - (beforeRect.Top + 30)) < 0.5;
+                bool persisted = layout.Placements.ContainsKey(cat) && File.Exists(layout.FilePath);
+
+                // restore the original spot and leave layout.json as we found it
+                layer.SetCardPosition(cat, beforeRect.Left, beforeRect.Top, false);
+                if (!hadPlacement)
+                {
+                    layout.Placements.Remove(cat);
+                    try { layout.Save(layout.FilePath); } catch { }
+                }
+
+                checks["card_move"] = new
+                {
+                    pass = moved && reallyMoved && persisted,
+                    really_moved = reallyMoved,
+                    persisted_in_layout = persisted,
+                    note = "dragging the header stores the position; client can reset it"
+                };
+            }
+            catch (Exception exMove)
+            {
+                checks["card_move"] = new { pass = false, error = exMove.Message };
+            }
         }
 
         // ---- idle memory + no resident timer (S4 power) ----------------------

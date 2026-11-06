@@ -381,7 +381,8 @@ public sealed class ClientWindow : Window
                         if (_state.CardsVisible) _layer.Hide(); else _layer.Show();
                         RefreshTheme();
                     }, true),
-                    Pill("重建卡片", () => { _ctx.NotifyChanged(); RefreshTheme(); }, false))
+                    Pill("重建卡片", () => { _ctx.NotifyChanged(); RefreshTheme(); }, false),
+                    Pill("重置卡片位置", () => { _layer.ResetCardPositions(); RefreshTheme(); }, false))
             }
         }));
 
