@@ -45,6 +45,9 @@ public sealed class Settings
                 if (s is not null && s.SchemaVersion is 1 or 2)
                 {
                     s.Normalize();
+                    // Persist the migration once, so later reads (and the client's
+                    // update field) see the same values as this run.
+                    try { s.Save(path); } catch { /* read-only: keep in-memory */ }
                     return s;
                 }
             }
